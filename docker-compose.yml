@@ -17,9 +17,9 @@ services:
     database:
         image: postgres:${POSTGRES_VERSION:-16}-alpine
         environment:
-            POSTGRES_DB: ${POSTGRES_DB:-app}
+            POSTGRES_DB: ${POSTGRES_DB:-payment}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-!ChangeMe!}
-            POSTGRES_USER: ${POSTGRES_USER:-app}
+            POSTGRES_USER: ${POSTGRES_USER:-payment}
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
             interval: 5s
@@ -28,5 +28,7 @@ services:
             start_period: 5s
         volumes:
             - database_data:/var/lib/postgresql/data:rw
+        ports:
+          - "5432:5432"
 volumes:
     database_data:
