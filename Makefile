@@ -48,11 +48,10 @@ migration: ## Generate a database migration.
 	${DC_EXEC} php bin/console make:migration
 
 migrate: ## Apply database migrations.
-	${DC_EXEC} php bin/console doctrine:migrations:migrate --no-interaction
+	${DC_EXEC} php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
 
 db-status: ## Show database migration status.
 	${DC_EXEC} php bin/console doctrine:migrations:status
 
 success-message:
 	@echo "You can now access the application at http://localhost:8337"
-	@echo "Good luck! 🚀"
