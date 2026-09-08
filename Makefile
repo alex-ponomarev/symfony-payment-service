@@ -1,22 +1,28 @@
 USER_ID=$(shell id -u)
 
 DC = @USER_ID=$(USER_ID) docker compose
-DC_RUN = ${DC} run --rm sio_test
-DC_EXEC = ${DC} exec sio_test
+DC_RUN = ${DC} run --rm --no-deps payment
+DC_EXEC = ${DC} exec payment
 
-PHONY: help
+.PHONY: help init build up stop start down reset restart console install migration migrate db-status success-message
 .DEFAULT_GOAL := help
 
 help: ## This help.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-init: down build install up success-message console ## Initialize environment
+init: ## Initialize environment.
+	@$(MAKE) build
+	@$(MAKE) install
+	@$(MAKE) up
+	@$(MAKE) migrate
+	@$(MAKE) success-message
+	@$(MAKE) console
 
 build: ## Build services.
 	${DC} build $(c)
 
 up: ## Create and start services.
-	${DC} up -d $(c)
+	${DC} up -d --remove-orphans --wait $(c)
 
 stop: ## Stop services.
 	${DC} stop $(c)
@@ -24,8 +30,11 @@ stop: ## Stop services.
 start: ## Start services.
 	${DC} start $(c)
 
-down: ## Stop and remove containers and volumes.
-	${DC} down -v $(c)
+down: ## Stop and remove containers without deleting volumes.
+	${DC} down --remove-orphans
+
+reset: ## Stop containers and delete volumes.
+	${DC} down -v --remove-orphans
 
 restart: stop start ## Restart services.
 
@@ -34,6 +43,15 @@ console: ## Login in console.
 
 install: ## Install dependencies without running the whole application.
 	${DC_RUN} composer install
+
+migration: ## Generate a database migration.
+	${DC_EXEC} php bin/console make:migration
+
+migrate: ## Apply database migrations.
+	${DC_EXEC} php bin/console doctrine:migrations:migrate --no-interaction
+
+db-status: ## Show database migration status.
+	${DC_EXEC} php bin/console doctrine:migrations:status
 
 success-message:
 	@echo "You can now access the application at http://localhost:8337"
