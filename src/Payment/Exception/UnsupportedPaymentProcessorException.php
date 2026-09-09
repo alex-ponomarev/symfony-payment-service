@@ -2,9 +2,10 @@
 
 namespace App\Payment\Exception;
 
+use App\Exception\ClientVisibleExceptionInterface;
 use InvalidArgumentException;
 
-final class UnsupportedPaymentProcessorException extends InvalidArgumentException
+final class UnsupportedPaymentProcessorException extends InvalidArgumentException implements ClientVisibleExceptionInterface
 {
     public function __construct(string $name)
     {

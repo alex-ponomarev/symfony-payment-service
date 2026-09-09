@@ -2,42 +2,49 @@
 
 namespace App\Controller;
 
-use App\Dto\CalculatePriceRequest;
-use App\Dto\PurchaseRequest;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
+use App\Dto;
+use App\Service;
+use Symfony\Component\HttpFoundation;
+use Symfony\Component\HttpKernel\Attribute;
 use Symfony\Component\Routing\Attribute\Route;
 
+#[Attribute\AsController]
 final class PaymentController
 {
+    public function __construct(
+        private readonly Service\CheckoutService $checkoutService,
+    ) {
+    }
+
     #[Route('/calculate-price', name: 'api_calculate_price', methods: ['POST'])]
     public function calculatePrice(
-        #[MapRequestPayload(
+        #[Attribute\MapRequestPayload(
             acceptFormat: 'json',
-            validationFailedStatusCode: Response::HTTP_UNPROCESSABLE_ENTITY,
+            validationFailedStatusCode: HttpFoundation\Response::HTTP_UNPROCESSABLE_ENTITY,
         )]
-        CalculatePriceRequest $request,
-    ): JsonResponse
+        Dto\CalculatePriceRequest $request,
+    ): HttpFoundation\JsonResponse
     {
-        return new JsonResponse(
-            ['message' => 'Price calculation is not implemented yet.'],
-            Response::HTTP_NOT_IMPLEMENTED,
-        );
+        $priceInCents = $this->checkoutService->calculatePrice($request);
+
+        return new HttpFoundation\JsonResponse([
+            'price' => $priceInCents,
+        ]);
     }
 
     #[Route('/purchase', name: 'api_purchase', methods: ['POST'])]
     public function purchase(
-        #[MapRequestPayload(
+        #[Attribute\MapRequestPayload(
             acceptFormat: 'json',
-            validationFailedStatusCode: Response::HTTP_UNPROCESSABLE_ENTITY,
+            validationFailedStatusCode: HttpFoundation\Response::HTTP_UNPROCESSABLE_ENTITY,
         )]
-        PurchaseRequest $request,
-    ): JsonResponse
+        Dto\PurchaseRequest $request,
+    ): HttpFoundation\JsonResponse
     {
-        return new JsonResponse(
-            ['message' => 'Purchase is not implemented yet.'],
-            Response::HTTP_NOT_IMPLEMENTED,
-        );
+        $this->checkoutService->purchase($request);
+
+        return new HttpFoundation\JsonResponse([
+            'success' => true,
+        ]);
     }
 }
