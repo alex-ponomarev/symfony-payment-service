@@ -1,16 +1,48 @@
-### Calculate Price
-POST http://127.0.0.1:8337/calculate-price
+@baseUrl = http://127.0.0.1:8337
+
+### Calculate price without coupon
+# Expected: 200 OK
+# {"status":"ok","data":{"price":11900}}
+POST {{baseUrl}}/calculate-price
 Accept: application/json
 Content-Type: application/json
 
 {
   "product": 1,
-  "taxNumber": "DE123456789",
-  "couponCode": "D15"
+  "taxNumber": "DE123456789"
 }
 
-### Execute Purchase
-POST http://127.0.0.1:8337/purchase
+### Calculate price with percentage coupon
+# Coupon code is deliberately lowercase: lookup is case-insensitive.
+# Expected: 200 OK
+# {"status":"ok","data":{"price":10540}}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "GR123456789",
+  "couponCode": "d15"
+}
+
+### Calculate price with fixed coupon
+# Expected: 200 OK
+# {"status":"ok","data":{"price":11400}}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "FRAB123456789",
+  "couponCode": "F5"
+}
+
+### Purchase with PayPal
+# Expected: 200 OK
+# {"status":"ok","data":{"success":true}}
+POST {{baseUrl}}/purchase
 Accept: application/json
 Content-Type: application/json
 
@@ -20,3 +52,73 @@ Content-Type: application/json
   "couponCode": "D15",
   "paymentProcessor": "paypal"
 }
+
+### Purchase with Stripe
+# Expected: 200 OK
+# {"status":"ok","data":{"success":true}}
+POST {{baseUrl}}/purchase
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123456789",
+  "paymentProcessor": "stripe"
+}
+
+### Invalid tax number
+# Expected: 400 Bad Request
+# {"status":"error","data":{"code":"invalid_request"}}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123"
+}
+
+### Unknown coupon
+# Expected: 400 Bad Request
+# {"status":"error","data":{"code":"coupon_not_found"}}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123456789",
+  "couponCode": "P50"
+}
+
+### Unsupported payment processor
+# Expected: 400 Bad Request
+# {"status":"error","data":{"code":"unsupported_payment_processor"}}
+POST {{baseUrl}}/purchase
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123456789",
+  "paymentProcessor": "applepay"
+}
+
+### Unsupported Content-Type
+# Expected: 400 Bad Request
+# {"status":"error","data":{"code":"invalid_request"}}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: text/plain
+
+{"product":1,"taxNumber":"DE123456789"}
+
+### Malformed JSON
+# Expected: 400 Bad Request
+# {"status":"error","data":{"code":"invalid_request"}}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product":
