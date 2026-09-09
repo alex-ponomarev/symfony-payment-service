@@ -3,6 +3,7 @@ USER_ID=$(shell id -u)
 DC = @USER_ID=$(USER_ID) docker compose
 DC_RUN = ${DC} run --rm --no-deps payment
 DC_EXEC = ${DC} exec payment
+DC_DEV_EXEC = ${DC} exec -e APP_ENV=dev payment
 DC_TEST_EXEC = ${DC} exec -e APP_ENV=test payment
 
 .PHONY: help init build up stop start down reset restart console install migration migrate fixtures db-status test-init test success-message
@@ -46,13 +47,13 @@ install: ## Install dependencies without running the whole application.
 	${DC_RUN} composer install
 
 migration: ## Generate a database migration.
-	${DC_EXEC} php bin/console make:migration
+	${DC_DEV_EXEC} php bin/console make:migration
 
 migrate: ## Apply database migrations.
 	${DC_EXEC} php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
 
 fixtures: ## Load missing development fixtures.
-	${DC_EXEC} php bin/console doctrine:fixtures:load --append --no-interaction
+	${DC_DEV_EXEC} php bin/console doctrine:fixtures:load --append --no-interaction
 
 db-status: ## Show database migration status.
 	${DC_EXEC} php bin/console doctrine:migrations:status

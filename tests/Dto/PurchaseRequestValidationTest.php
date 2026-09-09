@@ -72,11 +72,6 @@ final class PurchaseRequestValidationTest extends KernelTestCase
             'paymentProcessor',
             'Payment processor is required.',
         ];
-        yield 'unsupported payment processor' => [
-            new PurchaseRequest(1, 'DE123456789', 'applepay'),
-            'paymentProcessor',
-            'Unsupported payment processor.',
-        ];
         yield 'blank coupon code' => [
             new PurchaseRequest(1, 'DE123456789', 'paypal', ''),
             'couponCode',

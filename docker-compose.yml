@@ -10,7 +10,7 @@ services:
         volumes:
             - .:/app:rw
         environment:
-            - APP_ENV=dev
+            APP_ENV: ${PAYMENT_APP_ENV:-prod}
         depends_on:
             database:
                 condition: service_healthy

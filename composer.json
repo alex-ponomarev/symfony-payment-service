@@ -1,7 +1,8 @@
 {
-    "name": "systemeio/test-task-template",
+    "name": "alex-ponomarev/symfony-payment-service",
     "type": "project",
-    "description": "A bare bones Symfony app template with Docker support",
+    "description": "REST API for calculating product prices and processing payments",
+    "license": "proprietary",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
@@ -75,7 +76,6 @@
         "doctrine/doctrine-fixtures-bundle": "^4.3",
         "phpunit/phpunit": "^12.5",
         "symfony/browser-kit": "6.4.*",
-        "symfony/css-selector": "6.4.*",
         "symfony/maker-bundle": "^1.67"
     }
 }

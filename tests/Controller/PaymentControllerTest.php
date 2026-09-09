@@ -4,15 +4,24 @@ namespace App\Tests\Controller;
 
 use App\Entity\Coupon;
 use App\Entity\Product;
+use App\Payment\Exception\PaymentFailedException;
+use App\Payment\Exception\UnsupportedPaymentProcessorException;
+use App\Service\Exception\CouponNotActiveException;
+use App\Service\Exception\CouponNotFoundException;
+use App\Service\Exception\ProductNotFoundException;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Log\NullLogger;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 final class PaymentControllerTest extends WebTestCase
 {
+    private const INVALID_REQUEST_ERROR_CODE = 'invalid_request';
+    private const INTERNAL_ERROR_CODE = 'internal_error';
+
     private KernelBrowser $client;
     private EntityManagerInterface $entityManager;
 
@@ -54,7 +63,10 @@ final class PaymentControllerTest extends WebTestCase
         $this->postJson('/calculate-price', $payload);
 
         self::assertSame(
-            ['price' => $expectedPrice],
+            [
+                'status' => 'ok',
+                'data' => ['price' => $expectedPrice],
+            ],
             $this->responseJson(Response::HTTP_OK),
         );
     }
@@ -77,7 +89,10 @@ final class PaymentControllerTest extends WebTestCase
         ]);
 
         self::assertSame(
-            ['success' => true],
+            [
+                'status' => 'ok',
+                'data' => ['success' => true],
+            ],
             $this->responseJson(Response::HTTP_OK),
         );
     }
@@ -100,7 +115,22 @@ final class PaymentControllerTest extends WebTestCase
             content: '{"product":',
         );
 
-        $this->assertErrorHasDescription(Response::HTTP_BAD_REQUEST);
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+    }
+
+    public function testRejectsUnsupportedContentTypeWithoutExposingException(): void
+    {
+        $this->client->request(
+            'POST',
+            '/calculate-price',
+            server: [
+                'CONTENT_TYPE' => 'text/plain',
+                'HTTP_ACCEPT' => 'application/json',
+            ],
+            content: '{"product":1,"taxNumber":"DE123456789"}',
+        );
+
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
     }
 
     public function testRejectsMissingProduct(): void
@@ -109,7 +139,7 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertErrorHasDescription(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
     }
 
     public function testRejectsMissingTaxNumber(): void
@@ -118,7 +148,7 @@ final class PaymentControllerTest extends WebTestCase
             'product' => $this->productId('Iphone'),
         ]);
 
-        $this->assertErrorHasDescription(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
     }
 
     public function testRejectsMissingPaymentProcessor(): void
@@ -128,7 +158,7 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertErrorHasDescription(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
     }
 
     public function testRejectsWrongProductType(): void
@@ -138,7 +168,7 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertErrorHasDescription(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
     }
 
     public function testRejectsNonPositiveProduct(): void
@@ -148,7 +178,7 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertValidationViolation('product');
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
     }
 
     public function testRejectsInvalidTaxNumber(): void
@@ -158,7 +188,7 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'INVALID',
         ]);
 
-        $this->assertValidationViolation('taxNumber');
+        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
     }
 
     public function testRejectsUnsupportedPaymentProcessor(): void
@@ -169,7 +199,7 @@ final class PaymentControllerTest extends WebTestCase
             'paymentProcessor' => 'unknown',
         ]);
 
-        $this->assertValidationViolation('paymentProcessor');
+        $this->assertApiError(UnsupportedPaymentProcessorException::ERROR_CODE);
     }
 
     public function testRejectsUnknownProduct(): void
@@ -179,7 +209,7 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertDomainError('Product with identifier "2147483647" was not found.');
+        $this->assertApiError(ProductNotFoundException::ERROR_CODE);
     }
 
     public function testRejectsUnknownCoupon(): void
@@ -190,7 +220,7 @@ final class PaymentControllerTest extends WebTestCase
             'couponCode' => 'UNKNOWN',
         ]);
 
-        $this->assertDomainError('Coupon with code "UNKNOWN" was not found.');
+        $this->assertApiError(CouponNotFoundException::ERROR_CODE);
     }
 
     public function testRejectsCouponThatHasNotStarted(): void
@@ -211,7 +241,7 @@ final class PaymentControllerTest extends WebTestCase
             'couponCode' => 'APIFUTURE',
         ]);
 
-        $this->assertDomainError('Coupon with code "APIFUTURE" is not active.');
+        $this->assertApiError(CouponNotActiveException::ERROR_CODE);
     }
 
     public function testRejectsExpiredCoupon(): void
@@ -232,7 +262,30 @@ final class PaymentControllerTest extends WebTestCase
             'couponCode' => 'APIEXPIRED',
         ]);
 
-        $this->assertDomainError('Coupon with code "APIEXPIRED" is not active.');
+        $this->assertApiError(CouponNotActiveException::ERROR_CODE);
+    }
+
+    public function testHidesUnexpectedException(): void
+    {
+        self::getContainer()->set('logger', new NullLogger());
+
+        $coupon = new Coupon(
+            'APIUNSUPPORTED',
+            'unsupported',
+            10,
+            new DateTimeImmutable('-1 day'),
+            new DateTimeImmutable('+1 day'),
+        );
+        $this->entityManager->persist($coupon);
+        $this->entityManager->flush();
+
+        $this->postJson('/calculate-price', [
+            'product' => $this->productId('Iphone'),
+            'taxNumber' => 'DE123456789',
+            'couponCode' => 'APIUNSUPPORTED',
+        ]);
+
+        $this->assertApiError(self::INTERNAL_ERROR_CODE);
     }
 
     public function testReturnsErrorWhenPaypalPaymentFails(): void
@@ -247,7 +300,7 @@ final class PaymentControllerTest extends WebTestCase
             'paymentProcessor' => 'paypal',
         ]);
 
-        $this->assertDomainError('PayPal payment failed.');
+        $this->assertApiError(PaymentFailedException::ERROR_CODE);
     }
 
     public function testReturnsErrorWhenStripePaymentFails(): void
@@ -258,7 +311,7 @@ final class PaymentControllerTest extends WebTestCase
             'paymentProcessor' => 'stripe',
         ]);
 
-        $this->assertDomainError('Stripe payment failed.');
+        $this->assertApiError(PaymentFailedException::ERROR_CODE);
     }
 
     /** @param array<string, mixed> $payload */
@@ -280,31 +333,16 @@ final class PaymentControllerTest extends WebTestCase
         return json_decode($content, true, flags: JSON_THROW_ON_ERROR);
     }
 
-    private function assertErrorHasDescription(int $expectedStatus): void
-    {
-        $data = $this->responseJson($expectedStatus);
-        $description = $data['error'] ?? $data['detail'] ?? null;
-
-        self::assertIsString($description);
-        self::assertNotSame('', $description);
-    }
-
-    private function assertValidationViolation(string $expectedPath): void
-    {
-        $data = $this->responseJson(Response::HTTP_UNPROCESSABLE_ENTITY);
-
-        self::assertArrayHasKey('violations', $data);
-        self::assertContains(
-            $expectedPath,
-            array_column($data['violations'], 'propertyPath'),
-        );
-    }
-
-    private function assertDomainError(string $expectedMessage): void
+    private function assertApiError(string $errorCode): void
     {
         self::assertSame(
-            ['error' => $expectedMessage],
-            $this->responseJson(Response::HTTP_UNPROCESSABLE_ENTITY),
+            [
+                'status' => 'error',
+                'data' => [
+                    'code' => $errorCode,
+                ],
+            ],
+            $this->responseJson(Response::HTTP_BAD_REQUEST),
         );
     }
 
