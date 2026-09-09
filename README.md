@@ -58,8 +58,8 @@ Business endpoint responses use a common format:
 ```
 
 The `status` field can be either `ok` or `error`. For successful responses,
-`data` contains the operation result. For errors, it contains an object with a
-stable symbolic error code in the `code` field.
+`data` contains the operation result. For errors, it contains a non-empty array
+of objects with a stable symbolic `code` and a safe human-readable `message`.
 
 ### Price calculation
 
@@ -127,29 +127,43 @@ Successful response:
 `400 Bad Request` is returned for malformed JSON or an invalid Content-Type,
 validation errors, business logic errors, and payment processor errors.
 
-The response does not expose internal exception messages or stack traces.
-Instead, `data.code` contains a symbolic error code. For example:
+The response does not expose internal exception messages or stack traces. Each
+item in `data` contains a symbolic code and a safe public message. Validation
+can produce multiple items; their order is not part of the API contract. For
+example:
 
 ```json
 {
     "status": "error",
-    "data": {
-        "code": "coupon_not_found"
-    }
+    "data": [
+        {
+            "code": "coupon_not_found",
+            "message": "Coupon with code \"P50\" was not found."
+        }
+    ]
 }
 ```
 
 Main error codes:
 
-| Code                            | Reason                                        |
-| ------------------------------- | --------------------------------------------- |
-| `invalid_request`               | Malformed JSON or field validation error      |
-| `product_not_found`             | Product not found                             |
-| `coupon_not_found`              | Coupon not found                              |
-| `coupon_not_active`             | Coupon is not active                          |
-| `payment_failed`                | Payment processor rejected the payment        |
-| `unsupported_payment_processor` | Requested payment processor is not supported  |
-| `internal_error`                | Unexpected error while processing the request |
+| Code                            | Reason                                           |
+| ------------------------------- | ------------------------------------------------ |
+| `invalid_request`               | Invalid request that has no more specific code   |
+| `invalid_json`                  | Malformed JSON                                   |
+| `unsupported_content_type`      | Request Content-Type is not JSON                 |
+| `invalid_product`               | Missing, mistyped, or invalid product identifier |
+| `invalid_tax_number`            | Missing, mistyped, or invalid tax number         |
+| `invalid_coupon_code`           | Mistyped or incorrectly formatted coupon code    |
+| `invalid_payment_processor`     | Missing or mistyped payment processor            |
+| `unsupported_payment_processor` | Payment processor is not registered               |
+| `product_not_found`             | Product not found                                |
+| `coupon_not_found`              | Coupon not found                                 |
+| `coupon_not_active`             | Coupon is not active                             |
+| `payment_failed`                | Payment processor rejected the payment           |
+| `internal_error`                | Unexpected error while processing the request    |
+
+An unknown `paymentProcessor` value is rejected during request validation and
+returns the `unsupported_payment_processor` code.
 
 Ready-to-use successful and error request examples are available in
 [`requests.http`](requests.http) and can be executed directly from PhpStorm.

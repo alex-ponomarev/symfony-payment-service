@@ -4,11 +4,7 @@ namespace App\Tests\Controller;
 
 use App\Entity\Coupon;
 use App\Entity\Product;
-use App\Payment\Exception\PaymentFailedException;
-use App\Payment\Exception\UnsupportedPaymentProcessorException;
-use App\Service\Exception\CouponNotActiveException;
-use App\Service\Exception\CouponNotFoundException;
-use App\Service\Exception\ProductNotFoundException;
+use App\Exception\ApiErrorCode;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -19,9 +15,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class PaymentControllerTest extends WebTestCase
 {
-    private const INVALID_REQUEST_ERROR_CODE = 'invalid_request';
-    private const INTERNAL_ERROR_CODE = 'internal_error';
-
     private KernelBrowser $client;
     private EntityManagerInterface $entityManager;
 
@@ -115,7 +108,10 @@ final class PaymentControllerTest extends WebTestCase
             content: '{"product":',
         );
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InvalidJson,
+            'Request body contains invalid JSON.',
+        );
     }
 
     public function testRejectsUnsupportedContentTypeWithoutExposingException(): void
@@ -130,7 +126,10 @@ final class PaymentControllerTest extends WebTestCase
             content: '{"product":1,"taxNumber":"DE123456789"}',
         );
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::UnsupportedContentType,
+            'Content-Type must be application/json.',
+        );
     }
 
     public function testRejectsMissingProduct(): void
@@ -139,7 +138,10 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InvalidProduct,
+            'Product identifier is required and must be an integer.',
+        );
     }
 
     public function testRejectsMissingTaxNumber(): void
@@ -148,7 +150,10 @@ final class PaymentControllerTest extends WebTestCase
             'product' => $this->productId('Iphone'),
         ]);
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InvalidTaxNumber,
+            'Tax number is required and must be a string.',
+        );
     }
 
     public function testRejectsMissingPaymentProcessor(): void
@@ -158,7 +163,10 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InvalidPaymentProcessor,
+            'Payment processor is required and must be a string.',
+        );
     }
 
     public function testRejectsWrongProductType(): void
@@ -168,7 +176,10 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InvalidProduct,
+            'Product identifier is required and must be an integer.',
+        );
     }
 
     public function testRejectsNonPositiveProduct(): void
@@ -178,7 +189,10 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InvalidProduct,
+            'Product identifier must be greater than zero.',
+        );
     }
 
     public function testRejectsInvalidTaxNumber(): void
@@ -188,7 +202,44 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'INVALID',
         ]);
 
-        $this->assertApiError(self::INVALID_REQUEST_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InvalidTaxNumber,
+            'Invalid tax number.',
+        );
+    }
+
+    public function testReturnsAllValidationErrors(): void
+    {
+        $this->postJson('/purchase', [
+            'product' => $this->productId('Iphone'),
+            'taxNumber' => 'INVALID',
+            'paymentProcessor' => 'unknown',
+        ]);
+
+        $this->assertApiErrors([
+            [
+                'code' => ApiErrorCode::InvalidTaxNumber->value,
+                'message' => 'Invalid tax number.',
+            ],
+            [
+                'code' => ApiErrorCode::UnsupportedPaymentProcessor->value,
+                'message' => 'Unsupported payment processor.',
+            ],
+        ]);
+    }
+
+    public function testRejectsInvalidCouponCode(): void
+    {
+        $this->postJson('/calculate-price', [
+            'product' => $this->productId('Iphone'),
+            'taxNumber' => 'DE123456789',
+            'couponCode' => 'D-15',
+        ]);
+
+        $this->assertApiError(
+            ApiErrorCode::InvalidCouponCode,
+            'Coupon code must contain only letters and digits.',
+        );
     }
 
     public function testRejectsUnsupportedPaymentProcessor(): void
@@ -199,7 +250,10 @@ final class PaymentControllerTest extends WebTestCase
             'paymentProcessor' => 'unknown',
         ]);
 
-        $this->assertApiError(UnsupportedPaymentProcessorException::ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::UnsupportedPaymentProcessor,
+            'Unsupported payment processor.',
+        );
     }
 
     public function testRejectsUnknownProduct(): void
@@ -209,7 +263,10 @@ final class PaymentControllerTest extends WebTestCase
             'taxNumber' => 'DE123456789',
         ]);
 
-        $this->assertApiError(ProductNotFoundException::ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::ProductNotFound,
+            'Product with identifier "2147483647" was not found.',
+        );
     }
 
     public function testRejectsUnknownCoupon(): void
@@ -220,7 +277,10 @@ final class PaymentControllerTest extends WebTestCase
             'couponCode' => 'UNKNOWN',
         ]);
 
-        $this->assertApiError(CouponNotFoundException::ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::CouponNotFound,
+            'Coupon with code "UNKNOWN" was not found.',
+        );
     }
 
     public function testRejectsCouponThatHasNotStarted(): void
@@ -241,7 +301,10 @@ final class PaymentControllerTest extends WebTestCase
             'couponCode' => 'APIFUTURE',
         ]);
 
-        $this->assertApiError(CouponNotActiveException::ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::CouponNotActive,
+            'Coupon with code "APIFUTURE" is not active.',
+        );
     }
 
     public function testRejectsExpiredCoupon(): void
@@ -262,7 +325,10 @@ final class PaymentControllerTest extends WebTestCase
             'couponCode' => 'APIEXPIRED',
         ]);
 
-        $this->assertApiError(CouponNotActiveException::ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::CouponNotActive,
+            'Coupon with code "APIEXPIRED" is not active.',
+        );
     }
 
     public function testHidesUnexpectedException(): void
@@ -285,7 +351,10 @@ final class PaymentControllerTest extends WebTestCase
             'couponCode' => 'APIUNSUPPORTED',
         ]);
 
-        $this->assertApiError(self::INTERNAL_ERROR_CODE);
+        $this->assertApiError(
+            ApiErrorCode::InternalError,
+            'An internal error occurred.',
+        );
     }
 
     public function testReturnsErrorWhenPaypalPaymentFails(): void
@@ -300,7 +369,7 @@ final class PaymentControllerTest extends WebTestCase
             'paymentProcessor' => 'paypal',
         ]);
 
-        $this->assertApiError(PaymentFailedException::ERROR_CODE);
+        $this->assertApiError(ApiErrorCode::PaymentFailed, 'Payment failed.');
     }
 
     public function testReturnsErrorWhenStripePaymentFails(): void
@@ -311,7 +380,7 @@ final class PaymentControllerTest extends WebTestCase
             'paymentProcessor' => 'stripe',
         ]);
 
-        $this->assertApiError(PaymentFailedException::ERROR_CODE);
+        $this->assertApiError(ApiErrorCode::PaymentFailed, 'Payment failed.');
     }
 
     /** @param array<string, mixed> $payload */
@@ -333,14 +402,21 @@ final class PaymentControllerTest extends WebTestCase
         return json_decode($content, true, flags: JSON_THROW_ON_ERROR);
     }
 
-    private function assertApiError(string $errorCode): void
+    private function assertApiError(ApiErrorCode $errorCode, string $message): void
+    {
+        $this->assertApiErrors([[
+            'code' => $errorCode->value,
+            'message' => $message,
+        ]]);
+    }
+
+    /** @param list<array{code: string, message: string}> $errors */
+    private function assertApiErrors(array $errors): void
     {
         self::assertSame(
             [
                 'status' => 'error',
-                'data' => [
-                    'code' => $errorCode,
-                ],
+                'data' => $errors,
             ],
             $this->responseJson(Response::HTTP_BAD_REQUEST),
         );

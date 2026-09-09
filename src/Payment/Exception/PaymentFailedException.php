@@ -2,15 +2,19 @@
 
 namespace App\Payment\Exception;
 
+use App\Exception\ApiErrorCode;
 use App\Exception\ClientVisibleExceptionInterface;
 use RuntimeException;
 
 final class PaymentFailedException extends RuntimeException implements ClientVisibleExceptionInterface
 {
-    public const ERROR_CODE = 'payment_failed';
-
-    public function errorCode(): string
+    public function errorCode(): ApiErrorCode
     {
-        return self::ERROR_CODE;
+        return ApiErrorCode::PaymentFailed;
+    }
+
+    public function publicMessage(): string
+    {
+        return 'Payment failed.';
     }
 }

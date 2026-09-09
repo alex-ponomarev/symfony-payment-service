@@ -9,6 +9,7 @@ use Symfony\Component\Validator\Constraint;
 final class ValidPurchaseRequest extends Constraint
 {
     public string $invalidTaxNumberMessage = "Invalid tax number.";
+    public string $unsupportedPaymentProcessorMessage = "Unsupported payment processor.";
 
     public function getTargets(): string
     {

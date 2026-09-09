@@ -68,7 +68,7 @@ Content-Type: application/json
 
 ### Invalid tax number
 # Expected: 400 Bad Request
-# {"status":"error","data":{"code":"invalid_request"}}
+# {"status":"error","data":[{"code":"invalid_tax_number","message":"Invalid tax number."}]}
 POST {{baseUrl}}/calculate-price
 Accept: application/json
 Content-Type: application/json
@@ -80,7 +80,7 @@ Content-Type: application/json
 
 ### Unknown coupon
 # Expected: 400 Bad Request
-# {"status":"error","data":{"code":"coupon_not_found"}}
+# {"status":"error","data":[{"code":"coupon_not_found","message":"Coupon with code \"P50\" was not found."}]}
 POST {{baseUrl}}/calculate-price
 Accept: application/json
 Content-Type: application/json
@@ -92,8 +92,9 @@ Content-Type: application/json
 }
 
 ### Unsupported payment processor
+# Unknown processor names are rejected during request validation.
 # Expected: 400 Bad Request
-# {"status":"error","data":{"code":"unsupported_payment_processor"}}
+# {"status":"error","data":[{"code":"unsupported_payment_processor","message":"Unsupported payment processor."}]}
 POST {{baseUrl}}/purchase
 Accept: application/json
 Content-Type: application/json
@@ -104,21 +105,136 @@ Content-Type: application/json
   "paymentProcessor": "applepay"
 }
 
-### Unsupported Content-Type
+### Multiple validation errors
 # Expected: 400 Bad Request
-# {"status":"error","data":{"code":"invalid_request"}}
+# {"status":"error","data":[{"code":"invalid_tax_number","message":"Invalid tax number."},{"code":"unsupported_payment_processor","message":"Unsupported payment processor."}]}
+POST {{baseUrl}}/purchase
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123",
+  "paymentProcessor": "applepay"
+}
+
+
+### Unknown product
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"product_not_found","message":"Product with identifier \"2147483647\" was not found."}]}
 POST {{baseUrl}}/calculate-price
 Accept: application/json
-Content-Type: text/plain
+Content-Type: application/json
 
-{"product":1,"taxNumber":"DE123456789"}
+{
+  "product": 2147483647,
+  "taxNumber": "DE123456789"
+}
+
+### Missing product
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"invalid_product","message":"Product identifier is required and must be an integer."}]}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "taxNumber": "DE123456789"
+}
+
+### Missing payment processor
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"invalid_payment_processor","message":"Payment processor is required and must be a string."}]}
+POST {{baseUrl}}/purchase
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123456789"
+}
+
+### Non-positive product identifier
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"invalid_product","message":"Product identifier must be greater than zero."}]}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 0,
+  "taxNumber": "DE123456789"
+}
+
+### Product identifier has the wrong type
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"invalid_product","message":"Product identifier is required and must be an integer."}]}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": "not-an-integer",
+  "taxNumber": "DE123456789"
+}
+
+### Invalid coupon format
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"invalid_coupon_code","message":"Coupon code must contain only letters and digits."}]}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123456789",
+  "couponCode": "D-15"
+}
+
+### Percentage coupon reduces price to zero
+# Expected: 200 OK
+# {"status":"ok","data":{"price":0}}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 1,
+  "taxNumber": "DE123456789",
+  "couponCode": "P100"
+}
+
+### Stripe rejects an amount below 100 euros
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"payment_failed","message":"Payment failed."}]}
+POST {{baseUrl}}/purchase
+Accept: application/json
+Content-Type: application/json
+
+{
+  "product": 2,
+  "taxNumber": "DE123456789",
+  "paymentProcessor": "stripe"
+}
 
 ### Malformed JSON
 # Expected: 400 Bad Request
-# {"status":"error","data":{"code":"invalid_request"}}
+# {"status":"error","data":[{"code":"invalid_json","message":"Request body contains invalid JSON."}]}
 POST {{baseUrl}}/calculate-price
 Accept: application/json
 Content-Type: application/json
 
 {
   "product":
+
+### Unsupported Content-Type
+# Expected: 400 Bad Request
+# {"status":"error","data":[{"code":"unsupported_content_type","message":"Content-Type must be application/json."}]}
+POST {{baseUrl}}/calculate-price
+Accept: application/json
+Content-Type: text/plain
+
+{
+  "product": 1,
+  "taxNumber": "DE123456789"
+}
