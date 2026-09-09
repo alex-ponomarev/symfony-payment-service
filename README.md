@@ -1,52 +1,54 @@
+**English** | [Русский](README.ru.md)
+
 # Payment Service
 
-REST API на Symfony для расчета стоимости продукта и проведения оплаты через
-PayPal или Stripe.
+A Symfony REST API for calculating product prices and processing payments via
+PayPal or Stripe.
 
-Сервис хранит продукты и купоны в PostgreSQL, проверяет входные данные через
-Symfony Validator, применяет скидку, начисляет налог по налоговому номеру и
-передает итоговую сумму выбранному платежному процессору.
+The service stores products and coupons in PostgreSQL, validates incoming data
+with Symfony Validator, applies discounts, calculates tax based on the tax
+number, and passes the final amount to the selected payment processor.
 
-## Возможности
+## Features
 
-- расчет итоговой цены с купоном или без него;
-- процентные и фиксированные скидки;
-- проверка срока действия купона;
-- расчет налогов для Германии, Италии, Греции и Франции;
-- проведение платежей через PayPal и Stripe;
-- подключение новых платежных процессоров через общий интерфейс.
+* final price calculation with or without a coupon;
+* percentage-based and fixed discounts;
+* coupon validity period validation;
+* tax calculation for Germany, Italy, Greece, and France;
+* payment processing via PayPal and Stripe;
+* support for adding new payment processors through a common interface.
 
-## Правила расчета
+## Calculation rules
 
-Все денежные значения хранятся, рассчитываются и возвращаются как целое количество
-центов. Например, значение `11900` соответствует 119 евро.
+All monetary values are stored, calculated, and returned as integer amounts in
+cents. For example, the value `11900` corresponds to 119 euros.
 
-Расчет выполняется в следующем порядке:
+The calculation is performed in the following order:
 
-1. Загружается продукт.
-2. Если передан купон, из цены вычитается скидка.
-3. Цена не может стать меньше нуля.
-4. К полученной сумме добавляется налог.
-5. Результат округляется до целого количества центов.
+1. The product is loaded.
+2. If a coupon is provided, the discount is subtracted from the price.
+3. The price cannot become negative.
+4. Tax is added to the resulting amount.
+5. The result is rounded to an integer number of cents.
 
-Поддерживаются процентные и фиксированные скидки. Код купона можно передавать в
-любом регистре. Купон применяется только в пределах периода, заданного полями
-`startedAt` и `finishAt`.
+Both percentage-based and fixed discounts are supported. Coupon codes are
+case-insensitive. A coupon is applied only within the validity period defined by
+the `startedAt` and `finishAt` fields.
 
-### Налоговые номера
+### Tax numbers
 
-| Страна | Формат | Ставка |
-| --- | --- | ---: |
-| Германия | `DE` и 9 цифр | 19% |
-| Италия | `IT` и 11 цифр | 22% |
-| Греция | `GR` и 9 цифр | 24% |
-| Франция | `FR`, 2 заглавные буквы и 9 цифр | 20% |
+| Country | Format                                  | Rate |
+| ------- | --------------------------------------- | ---: |
+| Germany | `DE` followed by 9 digits               |  19% |
+| Italy   | `IT` followed by 11 digits              |  22% |
+| Greece  | `GR` followed by 9 digits               |  24% |
+| France  | `FR`, 2 uppercase letters, and 9 digits |  20% |
 
 ## REST API
 
-Локальный адрес приложения: `http://127.0.0.1:8337`.
+Local application URL: `http://127.0.0.1:8337`.
 
-Ответы бизнес-эндпоинтов используют единый формат:
+Business endpoint responses use a common format:
 
 ```json
 {
@@ -55,21 +57,21 @@ Symfony Validator, применяет скидку, начисляет нало�
 }
 ```
 
-Поле `status` принимает значение `ok` или `error`. При успешном ответе
-`data` содержит результат операции, а при ошибке — объект со стабильным
-символьным кодом в поле `code`.
+The `status` field can be either `ok` or `error`. For successful responses,
+`data` contains the operation result. For errors, it contains an object with a
+stable symbolic error code in the `code` field.
 
-### Расчет цены
+### Price calculation
 
 `POST /calculate-price`
 
-| Поле | Тип | Обязательное | Описание |
-| --- | --- | --- | --- |
-| `product` | integer | да | Положительный идентификатор продукта |
-| `taxNumber` | string | да | Налоговый номер поддерживаемой страны |
-| `couponCode` | string | нет | Код купона |
+| Field        | Type    | Required | Description                        |
+| ------------ | ------- | -------- | ---------------------------------- |
+| `product`    | integer | yes      | Positive product identifier        |
+| `taxNumber`  | string  | yes      | Tax number for a supported country |
+| `couponCode` | string  | no       | Coupon code                        |
 
-Пример запроса:
+Example request:
 
 ```json
 {
@@ -79,7 +81,7 @@ Symfony Validator, применяет скидку, начисляет нало�
 }
 ```
 
-Успешный ответ:
+Successful response:
 
 ```json
 {
@@ -90,14 +92,15 @@ Symfony Validator, применяет скидку, начисляет нало�
 }
 ```
 
-### Проведение покупки
+### Purchase
 
 `POST /purchase`
 
-Запрос содержит те же поля, что и расчет цены, а также обязательное поле
-`paymentProcessor` со значением `paypal` или `stripe`.
+The request contains the same fields as the price calculation endpoint, plus
+the required `paymentProcessor` field with either `paypal` or `stripe` as its
+value.
 
-Пример запроса:
+Example request:
 
 ```json
 {
@@ -108,7 +111,7 @@ Symfony Validator, применяет скидку, начисляет нало�
 }
 ```
 
-Успешный ответ:
+Successful response:
 
 ```json
 {
@@ -119,13 +122,13 @@ Symfony Validator, применяет скидку, начисляет нало�
 }
 ```
 
-### Ошибки
+### Errors
 
-`400 Bad Request` возвращается для некорректного JSON или Content-Type, ошибок
-валидации, бизнес-логики и платежного процессора.
+`400 Bad Request` is returned for malformed JSON or an invalid Content-Type,
+validation errors, business logic errors, and payment processor errors.
 
-Ответ не раскрывает тексты внутренних исключений и stack trace. Вместо этого
-`data.code` содержит символьный код ошибки. Например:
+The response does not expose internal exception messages or stack traces.
+Instead, `data.code` contains a symbolic error code. For example:
 
 ```json
 {
@@ -136,112 +139,120 @@ Symfony Validator, применяет скидку, начисляет нало�
 }
 ```
 
-Основные коды ошибок:
+Main error codes:
 
-| Код | Причина |
-| --- | --- |
-| `invalid_request` | Некорректный JSON или ошибка валидации полей |
-| `product_not_found` | Продукт не найден |
-| `coupon_not_found` | Купон не найден |
-| `coupon_not_active` | Купон не действует |
-| `payment_failed` | Платежный процессор отклонил платеж |
-| `unsupported_payment_processor` | Запрошенный платежный процессор не поддерживается |
-| `internal_error` | Непредвиденная ошибка обработки запроса |
+| Code                            | Reason                                        |
+| ------------------------------- | --------------------------------------------- |
+| `invalid_request`               | Malformed JSON or field validation error      |
+| `product_not_found`             | Product not found                             |
+| `coupon_not_found`              | Coupon not found                              |
+| `coupon_not_active`             | Coupon is not active                          |
+| `payment_failed`                | Payment processor rejected the payment        |
+| `unsupported_payment_processor` | Requested payment processor is not supported  |
+| `internal_error`                | Unexpected error while processing the request |
 
-Готовые успешные и ошибочные запросы находятся в
-[`requests.http`](requests.http) и могут быть запущены из PhpStorm.
+Ready-to-use successful and error request examples are available in
+[`requests.http`](requests.http) and can be executed directly from PhpStorm.
 
-## Платежные процессоры
+## Payment processors
 
-Интеграция с классами из `systemeio/test-for-candidates` изолирована адаптерами.
-PayPal получает сумму в центах, а Stripe — сумму, преобразованную в евро.
+Integration with the classes from `systemeio/test-for-candidates` is isolated
+behind adapters.
 
-Чтобы добавить новый процессор, достаточно реализовать
-`PaymentProcessorInterface`. Реализация автоматически получает DI-тег
-`app.payment_processor` и становится доступна в `PaymentProcessorRegistry`.
+PayPal receives the amount in cents, while Stripe receives the amount converted
+to euros.
 
-## Тестовые данные
+To add a new processor, it is enough to implement
+`PaymentProcessorInterface`. The implementation automatically receives the
+`app.payment_processor` DI tag and becomes available through
+`PaymentProcessorRegistry`.
 
-После загрузки fixtures в пустую базу доступны продукты:
+## Test data
 
-| ID | Продукт | Цена в центах |
-| ---: | --- | ---: |
-| 1 | Iphone | 10000 |
-| 2 | Наушники | 2000 |
-| 3 | Чехол | 1000 |
+After loading fixtures into an empty database, the following products are
+available:
 
-Доступные купоны:
+| ID | Product    | Price in cents |
+| -: | ---------- | -------------: |
+|  1 | Iphone     |          10000 |
+|  2 | Headphones |           2000 |
+|  3 | Phone case |           1000 |
 
-| Код | Тип | Скидка |
-| --- | --- | ---: |
-| `D15` | процентная | 15% |
-| `P10` | процентная | 10% |
-| `P100` | процентная | 100% |
-| `F5` | фиксированная | 500 центов |
+Available coupons:
 
-## Технологии
+| Code   | Type       |  Discount |
+| ------ | ---------- | --------: |
+| `D15`  | percentage |       15% |
+| `P10`  | percentage |       10% |
+| `P100` | percentage |      100% |
+| `F5`   | fixed      | 500 cents |
 
-- PHP 8.3;
-- Symfony 6.4;
-- Doctrine ORM и Doctrine Migrations;
-- PostgreSQL 16;
-- Docker Compose;
-- PHPUnit 12.
+## Technologies
 
-## Запуск
+* PHP 8.3;
+* Symfony 6.4;
+* Doctrine ORM and Doctrine Migrations;
+* PostgreSQL 16;
+* Docker Compose;
+* PHPUnit 12.
 
-Для работы необходимы Docker, Docker Compose и Make.
+## Running the project
 
-Первичная установка проекта:
+Docker, Docker Compose, and Make are required.
+
+Initial project setup:
 
 ```bash
 make init
 ```
 
-Команда соберет контейнеры, установит Composer-зависимости, запустит PostgreSQL,
-применит миграции и загрузит fixtures. Приложение запускается в окружении `prod`
-без отладочного вывода. После завершения API будет доступен по адресу
-`http://127.0.0.1:8337`.
+The command builds the containers, installs Composer dependencies, starts
+PostgreSQL, applies migrations, and loads fixtures.
 
-Для локального запуска приложения в окружении `dev`:
+The application starts in the `prod` environment without debug output. Once the
+setup is complete, the API will be available at:
+
+`http://127.0.0.1:8337`
+
+To run the application locally in the `dev` environment:
 
 ```bash
 PAYMENT_APP_ENV=dev make up
 ```
 
-Основные команды:
+Main commands:
 
-| Команда | Назначение |
-| --- | --- |
-| `make up` | Создать и запустить контейнеры |
-| `make stop` | Остановить контейнеры |
-| `make restart` | Перезапустить контейнеры без удаления данных |
-| `make down` | Удалить контейнеры без удаления volumes |
-| `make reset` | Удалить контейнеры и volumes вместе с данными |
-| `make migrate` | Применить миграции |
-| `make fixtures` | Добавить отсутствующие fixtures |
-| `make console` | Открыть shell контейнера приложения |
+| Command         | Description                                            |
+| --------------- | ------------------------------------------------------ |
+| `make up`       | Create and start containers                            |
+| `make stop`     | Stop containers                                        |
+| `make restart`  | Restart containers without deleting data               |
+| `make down`     | Remove containers without deleting volumes             |
+| `make reset`    | Remove containers and volumes together with their data |
+| `make migrate`  | Apply migrations                                       |
+| `make fixtures` | Add missing fixtures                                   |
+| `make console`  | Open a shell inside the application container          |
 
-### Подключение к PostgreSQL
+### PostgreSQL connection
 
-| Параметр | Значение |
-| --- | --- |
-| Host | `127.0.0.1` |
-| Port | `5432` |
-| Database | `payment` |
-| User | `payment` |
-| Password | `temppassword` |
+| Parameter | Value          |
+| --------- | -------------- |
+| Host      | `127.0.0.1`    |
+| Port      | `5432`         |
+| Database  | `payment`      |
+| User      | `payment`      |
+| Password  | `temppassword` |
 
-### Запуск тестов
+### Running tests
 
 ```bash
 make test
 ```
 
-Тесты используют отдельную базу `payment_test` и не изменяют данные основной
-базы `payment`.
+The tests use a separate `payment_test` database and do not modify data in the
+main `payment` database.
 
-## Разработчик
+## Developer
 
-**Александр Пономарев**  
-Email: [paspaam@yandex.ru](mailto:paspaam@yandex.ru)
+**Alexander Ponomarev**
+Email: [katapteros@gmail.com](mailto:katapteros@gmail.com)
