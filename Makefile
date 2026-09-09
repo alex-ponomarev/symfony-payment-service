@@ -4,7 +4,7 @@ DC = @USER_ID=$(USER_ID) docker compose
 DC_RUN = ${DC} run --rm --no-deps payment
 DC_EXEC = ${DC} exec payment
 
-.PHONY: help init build up stop start down reset restart console install migration migrate db-status success-message
+.PHONY: help init build up stop start down reset restart console install migration migrate fixtures db-status success-message
 .DEFAULT_GOAL := help
 
 help: ## This help.
@@ -15,8 +15,8 @@ init: ## Initialize environment.
 	@$(MAKE) install
 	@$(MAKE) up
 	@$(MAKE) migrate
+	@$(MAKE) fixtures
 	@$(MAKE) success-message
-	@$(MAKE) console
 
 build: ## Build services.
 	${DC} build $(c)
@@ -49,6 +49,9 @@ migration: ## Generate a database migration.
 
 migrate: ## Apply database migrations.
 	${DC_EXEC} php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+fixtures: ## Load missing development fixtures.
+	${DC_EXEC} php bin/console doctrine:fixtures:load --append --no-interaction
 
 db-status: ## Show database migration status.
 	${DC_EXEC} php bin/console doctrine:migrations:status
