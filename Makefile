@@ -3,8 +3,9 @@ USER_ID=$(shell id -u)
 DC = @USER_ID=$(USER_ID) docker compose
 DC_RUN = ${DC} run --rm --no-deps payment
 DC_EXEC = ${DC} exec payment
+DC_TEST_EXEC = ${DC} exec -e APP_ENV=test payment
 
-.PHONY: help init build up stop start down reset restart console install migration migrate fixtures db-status success-message
+.PHONY: help init build up stop start down reset restart console install migration migrate fixtures db-status test-init test success-message
 .DEFAULT_GOAL := help
 
 help: ## This help.
@@ -55,6 +56,14 @@ fixtures: ## Load missing development fixtures.
 
 db-status: ## Show database migration status.
 	${DC_EXEC} php bin/console doctrine:migrations:status
+
+test-init: ## Prepare schema and load fixtures in the test database.
+	${DC_TEST_EXEC} php bin/console doctrine:database:create --if-not-exists
+	${DC_TEST_EXEC} php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+	${DC_TEST_EXEC} php bin/console doctrine:fixtures:load --no-interaction
+
+test: test-init ## Run the test suite.
+	${DC_TEST_EXEC} php bin/phpunit
 
 success-message:
 	@echo "You can now access the application at http://localhost:8337"
